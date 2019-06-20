@@ -10,13 +10,14 @@ public:
 		NONE_SELECT,
 		START_SELECT,
 		SELECTING,
+        CAPTURED,
 	};
 
 	explicit ScreenSelectorWidget(QWidget* parent = nullptr);
 
 	void start();
 
-	void stop();
+	void stop();    
 
 private:
 	QPoint topLeft() const noexcept {
@@ -35,7 +36,7 @@ private:
 	QRect select_rect_;
 	QColor mask_color_;
 	QColor border_color_;
-	Qt::PenStyle border_style_;
-	ScreenSelectSizeWidget select_size_;
+	Qt::PenStyle border_style_;    
+	ScreenSelectSizeWidget select_size_;    
 };
 

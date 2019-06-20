@@ -4,6 +4,6 @@
 
 class ScreenHelper {
 public:
-	static QRect getAllScreenRect() noexcept;
+    static QRect getDisplayRect() noexcept;
 	static QRect getWindowBoundRect() noexcept;
 };

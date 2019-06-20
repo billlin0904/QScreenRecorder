@@ -2,7 +2,10 @@
 
 #include <memory>
 
+#include <QTimer>
 #include <QtWidgets/QMainWindow>
+
+#include "ffmpegvideowriter.h"
 #include "ui_qscreenrecorder.h"
 
 class ScreenSelectorWidget;
@@ -16,7 +19,10 @@ public:
 	~QScreenRecorder() override;
 
 private:
+    void saveScreen();
 
 	Ui::QScreenRecorderClass ui;
 	std::unique_ptr<ScreenSelectorWidget> selector_;
+    FFMpegVideoWriter video_writer_;
+    QTimer timer_;
 };
