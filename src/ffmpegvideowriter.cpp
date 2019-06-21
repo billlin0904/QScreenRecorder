@@ -7,6 +7,7 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/opt.h>
 }
 
 #include "ffmpegvideowriter.h"
@@ -74,8 +75,15 @@ public:
         }
     }
 
-    void addFrame(const uint8_t *pixels) {
-        memcpy(picture_rgb24_->data[0], pixels, pixel_size_);
+    void addFrame(const QImage& frame) {
+		picture_rgb24_->data[0] = (uint8_t*) frame.constBits();
+		picture_rgb24_->data[1] = nullptr;
+		picture_rgb24_->data[2] = nullptr;
+
+		picture_rgb24_->linesize[0] = frame.bytesPerLine();
+		picture_rgb24_->linesize[1] = 0;
+		picture_rgb24_->linesize[2] = 0;
+
         sws_scale(sws_context_,
                   picture_rgb24_->data,
                   picture_rgb24_->linesize,
@@ -113,17 +121,20 @@ private:
         video_stream_->id = format_context_->nb_streams - 1;
         video_codec_context_ = video_stream_->codec;
 
+#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
+#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
+
         if (format_context_->oformat->flags & AVFMT_GLOBALHEADER) {
             video_codec_context_->flags |= CODEC_FLAG_GLOBAL_HEADER;
         }
     }
 
     void createStreamBuffer(int width, int height) {
-        picture_ = avcodec_alloc_frame();
+		picture_ = av_frame_alloc();
         video_codec_context_->bit_rate = 400000;
         video_codec_context_->width = width;
         video_codec_context_->height = height;
-        video_codec_context_->time_base= (AVRational){1, 25};
+        video_codec_context_->time_base= AVRational{1, 25};
         video_codec_context_->gop_size = 10;
         video_codec_context_->max_b_frames = 1;
         video_codec_context_->pix_fmt = AV_PIX_FMT_YUV420P;
@@ -131,6 +142,7 @@ private:
         AVDictionary* options = nullptr;
         avcodec_open2(video_codec_context_, video_codec_, &options);
         qDebug() << "Opend codec:" << avcodec_get_name(format_->video_codec);
+		av_opt_set(video_codec_context_->priv_data, "tune", "zerolatency", 0);
 
         picture_->data[0] = nullptr;
         picture_->linesize[0] = -1;
@@ -142,15 +154,16 @@ private:
                        (AVPixelFormat)picture_->format,
                        32);
 
-        picture_rgb24_ = avcodec_alloc_frame();
+		picture_rgb24_ = av_frame_alloc();
         picture_rgb24_->format = AV_PIX_FMT_RGB24;
         pixel_size_ = av_image_alloc(picture_rgb24_->data,
                                      picture_rgb24_->linesize,
                                      video_codec_context_->width,
                                      video_codec_context_->height,
                                      (AVPixelFormat)picture_rgb24_->format,
-                                     24);
+                                     32);
 
+		// convert RGB24 to YUV420
         sws_context_ = sws_getContext(video_codec_context_->width,
                                       video_codec_context_->height,
                                       (AVPixelFormat)picture_rgb24_->format,
@@ -199,7 +212,7 @@ void FFMpegVideoWriter::close() {
 }
 
 void FFMpegVideoWriter::addFrame(const QImage &frame) {
-    impl_->addFrame(frame.bits());
+    impl_->addFrame(frame);
 }
 
 void FFMpegVideoWriter::open(const std::string &file_name, int width, int height) {

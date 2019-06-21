@@ -23,7 +23,7 @@ QRect ScreenHelper::getDisplayRect() noexcept {
 }
 
 QRect ScreenHelper::getWindowBoundRect() noexcept {
-    auto result = getAllScreenRect();
+    auto result = getDisplayRect();
     auto cpos = QCursor::pos();
 
     auto hwnd = GetDesktopWindow();

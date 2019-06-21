@@ -16,9 +16,9 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="QPushButton" name="startRecordButton">
+     <widget class="QPushButton" name="selectRectButton">
       <property name="text">
-       <string>StartRecord</string>
+       <string>Select Rect</string>
       </property>
      </widget>
     </item>

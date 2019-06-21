@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui x11extras
+QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -43,6 +43,8 @@ FORMS += \
         qscreenrecorder.ui
 
 linux-g++* {
+    QT += x11extras
+
     LIBS += -lX11 -lavformat -lavcodec -lavutil -lswscale
 }
 
