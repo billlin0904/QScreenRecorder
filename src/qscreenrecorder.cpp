@@ -146,9 +146,10 @@ void QScreenRecorder::saveScreen() {
 	}
 #else
 	try {
-		if (!frame_buffer_.tryEnqueue(selector_->grabImage())) {
-			qDebug() << "tryEnqueue fail.";
-		}
+        if (!frame_buffer_.tryEnqueue(selector_->grabImage())) {
+            qDebug() << "tryEnqueue fail.";
+        }
+        //selector_->grabImage();
 	}
 	catch (const std::exception& e) {
 		qDebug() << e.what();

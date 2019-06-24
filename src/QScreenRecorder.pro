@@ -24,20 +24,25 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 CONFIG += c++11
 
+INCLUDEPATH += ./packages/libyuv/include/
+
 SOURCES += \
     main.cpp\
     qscreenrecorder.cpp \
     screenhelper.cpp \
     screenselector_widget.cpp \
     screenselectsize_widget.cpp \
-    ffmpegvideowriter.cpp
+    libavvideoencoder.cpp \
+    fastscreencapture_linux.cpp
 
 HEADERS += \
         qscreenrecorder.h \
         screenhelper.h \
         screenselector_widget.h \
     screenselectsize_widget.h \
-    ffmpegvideowriter.h
+    fastscreencapture.h \
+    libavvideoencoder.h \
+    fastscreencapture_linux.h
 
 FORMS += \
         qscreenrecorder.ui
@@ -45,7 +50,7 @@ FORMS += \
 linux-g++* {
     QT += x11extras
 
-    LIBS += -lX11 -lavformat -lavcodec -lavutil -lswscale
+    LIBS += -lX11 -lavformat -lavcodec -lavutil -lswscale -lyuv
 }
 
 # Default rules for deployment.
@@ -53,3 +58,10 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
+
+unix:!macx: LIBS += -L$$PWD/packages/libyuv/ -lyuv
+
+INCLUDEPATH += $$PWD/packages/libyuv
+DEPENDPATH += $$PWD/packages/libyuv
+
+unix:!macx: PRE_TARGETDEPS += $$PWD/packages/libyuv/libyuv.a

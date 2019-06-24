@@ -34,7 +34,7 @@ ScreenSelectorWidget::ScreenSelectorWidget(QWidget* parent)
 	QObject::connect(stop_record, &QShortcut::activated, [this]() {
 		emit stopRecord();
 		});
-	capture_ = std::make_unique<screenshot::FastScreenCapture>();
+    capture_.reset(new screenshot::FastScreenCapture());
 }
 
 void ScreenSelectorWidget::setInterval(int mills) {
@@ -58,7 +58,8 @@ void ScreenSelectorWidget::setBorderColor(QColor color) {
 }
 
 QImage ScreenSelectorWidget::grabImage() {
-#if Q_OS_LINUX
+#if defined(Q_OS_LINUX)
+#if 0
 	// Include BGR888 image format for QImage.
 	// https://bugreports.qt.io/browse/QTBUG-45671
 	static auto screen = QGuiApplication::primaryScreen();
@@ -73,6 +74,9 @@ QImage ScreenSelectorWidget::grabImage() {
 		.toImage()
 		.convertToFormat(QImage::Format_RGB888))
 		.rgbSwapped();
+#endif
+    const auto & image = capture_->getImage();
+    return QImage(image.data(), select_rect_.width(), select_rect_.height(), QImage::Format_RGB32).copy();
 #elif defined(Q_OS_WIN32)
 	const auto & image = capture_->getImage();
 	return QImage(image.data(), select_rect_.width(), select_rect_.height(), QImage::Format_ARGB32).copy();

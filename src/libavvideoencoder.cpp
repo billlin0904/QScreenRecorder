@@ -1,6 +1,8 @@
 #include <QDebug>
 #include <vector>
 
+#include <qsystemdetection.h>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -150,7 +152,7 @@ public:
 
 #if US_LIBYUV
 #if 0
-		libyuv::RGB24ToI420(src_frame_->data[0],
+        libyuv::RGB24ToI420(src_frame_->data[0],
 			src_frame_->linesize[0],
 			scale_frame_->data[0],
 			scale_frame_->linesize[0],
@@ -191,9 +193,17 @@ public:
 		LIBAV_IF_FAILED_THROW(avcodec_encode_video2(video_codec_context_, &pkt, scale_frame_, &got_packet));
 
         if (got_packet) {
-			pkt.pts = av_rescale_q_rnd(pkt.pts, video_codec_context_->time_base, video_stream_->time_base, AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-			pkt.dts = av_rescale_q_rnd(pkt.dts, video_codec_context_->time_base, video_stream_->time_base, AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-			pkt.duration = av_rescale_q(pkt.duration, video_codec_context_->time_base, video_stream_->time_base);
+            pkt.pts = av_rescale_q_rnd(pkt.pts,
+                                       video_codec_context_->time_base,
+                                       video_stream_->time_base,
+                                       AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+            pkt.dts = av_rescale_q_rnd(pkt.dts,
+                                       video_codec_context_->time_base,
+                                       video_stream_->time_base,
+                                       AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+            pkt.duration = av_rescale_q(pkt.duration,
+                                        video_codec_context_->time_base,
+                                        video_stream_->time_base);
 			pkt.stream_index = video_stream_->index;
 			LIBAV_IF_FAILED_THROW(av_interleaved_write_frame(format_context_, &pkt));
 			av_packet_unref(&pkt);
