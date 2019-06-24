@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>600</width>
-    <height>160</height>
+    <height>41</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,9 +16,44 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="QPushButton" name="selectRectButton">
+     <widget class="QPushButton" name="startRecordButton">
       <property name="text">
-       <string>Select Rect</string>
+       <string>Start</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="stopRecrodButton">
+      <property name="text">
+       <string>Stop</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QProgressBar" name="frameBufferBar">
+      <property name="value">
+       <number>0</number>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="maxElapsedLabel">
+      <property name="text">
+       <string>Max: 0ms</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="minElapsedLabel">
+      <property name="text">
+       <string>Min: 0ms</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="curElapsedLabel">
+      <property name="text">
+       <string>Cur: 0ms</string>
       </property>
      </widget>
     </item>

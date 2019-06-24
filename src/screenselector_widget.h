@@ -1,9 +1,15 @@
 #pragma once
 
+#include <memory>
+
 #include <QWidget>
 
 #include "anchor.h"
 #include "screenselectsize_widget.h"
+
+namespace screenshot {
+class FastScreenCapture;
+}
 
 class ScreenSelectorWidget : public QWidget {
 	Q_OBJECT
@@ -19,6 +25,8 @@ public:
 
 	explicit ScreenSelectorWidget(QWidget* parent = nullptr);
 
+	~ScreenSelectorWidget();
+
 	void start();
 
 	void stop(); 
@@ -28,6 +36,8 @@ public:
 	void setBorderColor(QColor color);
 
 	QImage grabImage();
+
+	void setInterval(int mills);
 
 signals:
 	void startRecord(int width, int height);
@@ -53,6 +63,7 @@ private:
 	QPoint outside_move_begin_;
 	QPoint outside_move_end_;
 	QRect select_rect_;
-	ScreenSelectSizeWidget select_size_;    
+	ScreenSelectSizeWidget select_size_; 
+	std::unique_ptr<screenshot::FastScreenCapture> capture_;
 };
 

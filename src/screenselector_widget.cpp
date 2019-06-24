@@ -1,8 +1,13 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QShortcut>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QApplication>
+#include <QDesktopWidget>
 
 #include "screenhelper.h"
+#include "fastscreencapture.h"
 #include "screenselector_widget.h"
 
 ScreenSelectorWidget::ScreenSelectorWidget(QWidget* parent)
@@ -16,21 +21,32 @@ ScreenSelectorWidget::ScreenSelectorWidget(QWidget* parent)
 	, select_size_(this) {
 	setAttribute(Qt::WA_TranslucentBackground);
 	setMouseTracking(true);
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint /*| Qt::WindowStaysOnTopHint | Qt::BypassWindowManagerHint*/);
+    //setWindowFlags(Qt::Window | Qt::FramelessWindowHint /*| Qt::WindowStaysOnTopHint | Qt::BypassWindowManagerHint*/);
+	setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint /*| Qt::BypassWindowManagerHint*/);
 	resizeForScreenSize();
 	auto start_record = new QShortcut(Qt::CTRL + Qt::Key_R, this);
 	QObject::connect(start_record, &QShortcut::activated, [this]() {
+		select_rect_.setWidth(select_rect_.width() / 2 * 2);
+		select_rect_.setHeight(select_rect_.height() / 2 * 2);
 		emit startRecord(select_rect_.width(), select_rect_.height());
 		});
 	auto stop_record = new QShortcut(Qt::CTRL + Qt::Key_S, this);
 	QObject::connect(stop_record, &QShortcut::activated, [this]() {
 		emit stopRecord();
 		});
+	capture_ = std::make_unique<screenshot::FastScreenCapture>();
+}
+
+void ScreenSelectorWidget::setInterval(int mills) {
+	capture_->setInterval(mills);
+}
+
+ScreenSelectorWidget::~ScreenSelectorWidget() {
 }
 
 void ScreenSelectorWidget::resizeForScreenSize() {
-    const auto rect = ScreenHelper::getDisplayRect();
-	setFixedSize(rect.width(), rect.height());
+	select_rect_ = ScreenHelper::getDisplayRect();
+	setFixedSize(select_rect_.width(), select_rect_.height());
 }
 
 void ScreenSelectorWidget::setMaskColor(QColor color) {
@@ -42,7 +58,25 @@ void ScreenSelectorWidget::setBorderColor(QColor color) {
 }
 
 QImage ScreenSelectorWidget::grabImage() {
-	return grab(select_rect_).toImage().convertToFormat(QImage::Format_RGB888);
+#if Q_OS_LINUX
+	// Include BGR888 image format for QImage.
+	// https://bugreports.qt.io/browse/QTBUG-45671
+	static auto screen = QGuiApplication::primaryScreen();
+	static auto wid = QApplication::desktop()->winId();
+
+	return std::move(screen->grabWindow(wid,
+		select_rect_.x(),
+		select_rect_.y(),
+		select_rect_.width(),
+		select_rect_.height())
+		.copy(0, 0, select_rect_.width(), select_rect_.height())
+		.toImage()
+		.convertToFormat(QImage::Format_RGB888))
+		.rgbSwapped();
+#elif defined(Q_OS_WIN32)
+	const auto & image = capture_->getImage();
+	return QImage(image.data(), select_rect_.width(), select_rect_.height(), QImage::Format_ARGB32).copy();
+#endif
 }
 
 void ScreenSelectorWidget::stop() {
@@ -104,14 +138,14 @@ void ScreenSelectorWidget::updateSelected() {
 	if (status_ == MOVING) {
 		QPoint diff(inside_move_end_.x() - inside_move_begin_.x(), inside_move_end_.y() - inside_move_begin_.y());
 
-		Anchor anchor(select_rect_);
-		auto diff_min_x = std::max(anchor.left(), 0);
-		auto diff_max_x = std::max(width() - anchor.right(), 0);
-		auto diff_min_y = std::max(anchor.top(), 0);
-		auto diff_max_y = std::max(height() - anchor.bottom(), 0);
+		const Anchor anchor(select_rect_);
+		auto diff_min_x = (std::max)(anchor.left(), 0);
+		auto diff_max_x = (std::max)(width() - anchor.right(), 0);
+		auto diff_min_y = (std::max)(anchor.top(), 0);
+		auto diff_max_y = (std::max)(height() - anchor.bottom(), 0);
 
-		diff.rx() = (diff.x() < 0) ? std::max(diff.x(), -diff_min_x) : std::min(diff.x(), diff_max_x);
-		diff.ry() = (diff.y() < 0) ? std::max(diff.y(), -diff_min_y) : std::min(diff.y(), diff_max_y);
+		diff.rx() = (diff.x() < 0) ? (std::max)(diff.x(), -diff_min_x) : (std::min)(diff.x(), diff_max_x);
+		diff.ry() = (diff.y() < 0) ? (std::max)(diff.y(), -diff_min_y) : (std::min)(diff.y(), diff_max_y);
 
 		select_rect_.translate(diff);
 	}
@@ -188,7 +222,7 @@ void ScreenSelectorWidget::mouseReleaseEvent(QMouseEvent* event) {
 	update();
 }
 
-void ScreenSelectorWidget::paintEvent(QPaintEvent* event) {
+void ScreenSelectorWidget::paintEvent(QPaintEvent* ) {
 	QPainter painter(this);
 
 	painter.fillRect(rect(), QColor(0, 0, 0, 1));
@@ -201,15 +235,17 @@ void ScreenSelectorWidget::paintEvent(QPaintEvent* event) {
 		select_rect_ = ScreenHelper::getWindowBoundRect();
 	} 
 	
-	Anchor anchor(select_rect_);
+	const Anchor anchor(select_rect_);
 
     // Show size info
     select_size_.setSize(select_rect_.size());
     auto screen_size_y = anchor.topLeft().y() - select_size_.geometry().height();
     select_size_.move(anchor.topLeft().x() + 1, (screen_size_y < 0 ? anchor.topLeft().y() + 1 : screen_size_y));
+
     // Show border
     painter.setPen(QPen(border_color_, border_width_, border_style_));
     painter.drawRect(select_rect_);
+
     // Show anchor    
     painter.fillRect(anchor.anchorRect(Anchor::TOP_LEFT), border_color_);
     painter.fillRect(anchor.anchorRect(Anchor::BOTTOM_RIGHT), border_color_);

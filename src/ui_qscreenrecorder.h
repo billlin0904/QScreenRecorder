@@ -12,7 +12,9 @@
 #include <QtCore/QVariant>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QMainWindow>
+#include <QtWidgets/QProgressBar>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpacerItem>
 #include <QtWidgets/QWidget>
@@ -24,24 +26,55 @@ class Ui_QScreenRecorderClass
 public:
     QWidget *centralWidget;
     QHBoxLayout *horizontalLayout;
-    QPushButton *selectRectButton;
+    QPushButton *startRecordButton;
+    QPushButton *stopRecrodButton;
+    QProgressBar *frameBufferBar;
+    QLabel *maxElapsedLabel;
+    QLabel *minElapsedLabel;
+    QLabel *curElapsedLabel;
     QSpacerItem *horizontalSpacer;
 
     void setupUi(QMainWindow *QScreenRecorderClass)
     {
         if (QScreenRecorderClass->objectName().isEmpty())
             QScreenRecorderClass->setObjectName(QString::fromUtf8("QScreenRecorderClass"));
-        QScreenRecorderClass->resize(600, 160);
+        QScreenRecorderClass->resize(600, 41);
         centralWidget = new QWidget(QScreenRecorderClass);
         centralWidget->setObjectName(QString::fromUtf8("centralWidget"));
         horizontalLayout = new QHBoxLayout(centralWidget);
         horizontalLayout->setSpacing(6);
         horizontalLayout->setContentsMargins(11, 11, 11, 11);
         horizontalLayout->setObjectName(QString::fromUtf8("horizontalLayout"));
-        selectRectButton = new QPushButton(centralWidget);
-        selectRectButton->setObjectName(QString::fromUtf8("selectRectButton"));
+        startRecordButton = new QPushButton(centralWidget);
+        startRecordButton->setObjectName(QString::fromUtf8("startRecordButton"));
 
-        horizontalLayout->addWidget(selectRectButton);
+        horizontalLayout->addWidget(startRecordButton);
+
+        stopRecrodButton = new QPushButton(centralWidget);
+        stopRecrodButton->setObjectName(QString::fromUtf8("stopRecrodButton"));
+
+        horizontalLayout->addWidget(stopRecrodButton);
+
+        frameBufferBar = new QProgressBar(centralWidget);
+        frameBufferBar->setObjectName(QString::fromUtf8("frameBufferBar"));
+        frameBufferBar->setValue(0);
+
+        horizontalLayout->addWidget(frameBufferBar);
+
+        maxElapsedLabel = new QLabel(centralWidget);
+        maxElapsedLabel->setObjectName(QString::fromUtf8("maxElapsedLabel"));
+
+        horizontalLayout->addWidget(maxElapsedLabel);
+
+        minElapsedLabel = new QLabel(centralWidget);
+        minElapsedLabel->setObjectName(QString::fromUtf8("minElapsedLabel"));
+
+        horizontalLayout->addWidget(minElapsedLabel);
+
+        curElapsedLabel = new QLabel(centralWidget);
+        curElapsedLabel->setObjectName(QString::fromUtf8("curElapsedLabel"));
+
+        horizontalLayout->addWidget(curElapsedLabel);
 
         horizontalSpacer = new QSpacerItem(498, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
@@ -57,7 +90,11 @@ public:
     void retranslateUi(QMainWindow *QScreenRecorderClass)
     {
         QScreenRecorderClass->setWindowTitle(QApplication::translate("QScreenRecorderClass", "QScreenRecorder", nullptr));
-        selectRectButton->setText(QApplication::translate("QScreenRecorderClass", "Select Rect", nullptr));
+        startRecordButton->setText(QApplication::translate("QScreenRecorderClass", "Start", nullptr));
+        stopRecrodButton->setText(QApplication::translate("QScreenRecorderClass", "Stop", nullptr));
+        maxElapsedLabel->setText(QApplication::translate("QScreenRecorderClass", "Max: 0ms", nullptr));
+        minElapsedLabel->setText(QApplication::translate("QScreenRecorderClass", "Min: 0ms", nullptr));
+        curElapsedLabel->setText(QApplication::translate("QScreenRecorderClass", "Cur: 0ms", nullptr));
     } // retranslateUi
 
 };

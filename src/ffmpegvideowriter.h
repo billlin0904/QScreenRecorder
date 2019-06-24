@@ -2,14 +2,28 @@
 
 #include <memory>
 #include <string>
+#include <stdexcept>
 
 #include <QImage>
 
-class FFMpegVideoWriter {
+class LibavException : public std::exception {
 public:
-    FFMpegVideoWriter();
+	explicit LibavException(int error);
 
-    ~FFMpegVideoWriter();
+	int error() const noexcept;
+
+	const char* what() const noexcept override;
+
+private:
+	int error_;
+	std::string message_;
+};
+
+class LibavVideEncoder {
+public:
+    LibavVideEncoder();
+
+    ~LibavVideEncoder();
 
     void open(const std::string &file_name, int width, int height);
 
@@ -18,7 +32,7 @@ public:
     void addFrame(const QImage &frame);
 
 private:
-    class FFMpegVideoWriterImpl;
-    std::unique_ptr<FFMpegVideoWriterImpl> impl_;
+    class LibavVideEncoderImpl;
+    std::unique_ptr<LibavVideEncoderImpl> impl_;
 };
 

@@ -1,11 +1,18 @@
 #pragma once
 
 #include <memory>
+#include <atomic>
+#include <future>
 
 #include <QTimer>
+#include <QElapsedTimer>
+
 #include <QtWidgets/QMainWindow>
 
-#include "ffmpegvideowriter.h"
+#include "spscqueue.h"
+#include "waitqueue.h"
+
+#include "libavvideoencoder.h"
 #include "ui_qscreenrecorder.h"
 
 class ScreenSelectorWidget;
@@ -19,10 +26,21 @@ public:
 	~QScreenRecorder() override;
 
 private:
+	void startRecord(int width, int height, int fps);
+
     void saveScreen();
 
-	Ui::QScreenRecorderClass ui;
+	std::atomic<bool> is_done_;
+	qint64 max_elapsed_;
+	qint64 min_elapsed_;	
 	std::unique_ptr<ScreenSelectorWidget> selector_;
-    FFMpegVideoWriter video_writer_;
-    QTimer timer_;
+    LibavVideoEncoder video_encoder_;
+	SPSCQueue<QImage, 64> frame_buffer_;
+	//WaitQueue<QImage> frame_buffer_;
+    QTimer capture_timer_;
+	QTimer delay_record_timer;
+	QTimer update_timer_;
+	QElapsedTimer snap_sceen_timer;
+	std::future<void> future_;
+	Ui::QScreenRecorderClass ui;
 };
