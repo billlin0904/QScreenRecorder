@@ -30,7 +30,7 @@ public:
 		if (next_head == tail_.load(std::memory_order_acquire)) {
 			return false;
 		}
-		queue_[head] = std::move(value);
+		queue_[head] = std::forward<T>(value);
 		head_.store(next_head, std::memory_order_release);
 		return true;
 	}

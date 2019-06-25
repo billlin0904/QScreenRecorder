@@ -55,7 +55,7 @@ public:
 private:
 	class DXGIOutput;
 
-	void enumDXGIOutput();
+	void enumAvailableOutput();
 
 	CComPtr<IDXGIFactory1> factory_;
 	CComPtr<IWICImagingFactory> imaging_factory_;

@@ -47,7 +47,7 @@ public:
 
     void close();
 
-    void addFrame(const uint8_t* bits, int bytes_per_line);
+    void writeVideoFrame(const uint8_t* bits, int bytes_per_line);
 
 private:
     class LibavVideoEncoderImpl;

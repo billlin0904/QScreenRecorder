@@ -159,7 +159,7 @@ private:
 
 FastScreenCapture::FastScreenCapture() {
 	IF_FAILED_THROW(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory_));	
-	enumDXGIOutput();
+	enumAvailableOutput();
 	outputs_[0].allocateBuffer();
 }
 
@@ -167,14 +167,14 @@ FastScreenCapture::~FastScreenCapture() {
 }
 
 void FastScreenCapture::setInterval(int mills) {
-	outputs_[0].setInterval(mills);
+	//outputs_[0].setInterval(mills);
 }
 
 const std::vector<BYTE>& FastScreenCapture::getImage() {
 	return outputs_[0].getImage();
 }
 
-void FastScreenCapture::enumDXGIOutput() {
+void FastScreenCapture::enumAvailableOutput() {
 	std::vector<CComPtr<IDXGIAdapter1>> adapters;
 	CComPtr<IDXGIAdapter1> adapter;
 
@@ -197,7 +197,7 @@ void FastScreenCapture::enumDXGIOutput() {
 
 		CComPtr<ID3D11Device> device;
 		CComPtr<ID3D11DeviceContext> device_context;
-		D3D_FEATURE_LEVEL fl = D3D_FEATURE_LEVEL_9_1;
+		D3D_FEATURE_LEVEL level = D3D_FEATURE_LEVEL_9_1;
 		IF_FAILED_CONTINUE(D3D11CreateDevice(adapter,
 			D3D_DRIVER_TYPE_UNKNOWN,
 			nullptr,
@@ -206,7 +206,7 @@ void FastScreenCapture::enumDXGIOutput() {
 			0,
 			D3D11_SDK_VERSION,
 			&device,
-			&fl,
+			&level,
 			&device_context));
 
 		for (auto& output : outputs) {

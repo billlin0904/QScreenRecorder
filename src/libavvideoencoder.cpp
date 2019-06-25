@@ -136,12 +136,12 @@ public:
 
 	void open(const std::string& file_name, int width, int height, Preset preset, int bit_rate, int fps) {
 		LibavInit::get();
-		close();
-		createVideoFormat(file_name);
-		createStreamBuffer(width, height, preset, bit_rate, fps);
+		close();		
+		openVideoStream(file_name, width, height, preset, bit_rate, fps);
+		openAudioStream();
 	}
 
-    void addFrame(const uint8_t* bits, int bytes_per_line) {
+    void writeVideoFrame(const uint8_t* bits, int bytes_per_line) {
 		src_frame_->data[0] = (uint8_t*)bits;
 		src_frame_->data[1] = nullptr;
 		src_frame_->data[2] = nullptr;
@@ -212,44 +212,75 @@ public:
     }
 
 private:
-    void createVideoFormat(const std::string &file_name) {
-		LIBAV_IF_FAILED_THROW(avformat_alloc_output_context2(&format_context_, nullptr, nullptr, file_name.c_str()));
-        format_ = format_context_->oformat;
+	void openAudioStream(int sample_rate = 48000) {
+		audio_codec_ = avcodec_find_encoder(format_->audio_codec);
 
-        auto avcid = format_->video_codec;
-        video_codec_ = avcodec_find_encoder(avcid);
+		audio_stream_ = avformat_new_stream(format_context_, audio_codec_);
+		LIBAV_IF_NULL_THROW(audio_stream_);
+
+		audio_stream_->id = format_context_->nb_streams - 1;
+
+		audio_codec_context_ = audio_stream_->codec;
+		LIBAV_IF_NULL_THROW(audio_codec_context_);
+
+		audio_codec_context_->channel_layout = AV_CH_LAYOUT_STEREO;
+		audio_codec_context_->sample_fmt = audio_codec_->sample_fmts ? audio_codec_->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+		audio_codec_context_->sample_rate = sample_rate;
+		audio_codec_context_->channels = 2;
+		LIBAV_IF_FAILED_THROW(avcodec_open2(audio_codec_context_, audio_codec_, nullptr));
+
+#define CODEC_CAP_VARIABLE_FRAME_SIZE 0x10000
+		auto src_nb_samples = audio_codec_context_->codec->capabilities
+			& CODEC_CAP_VARIABLE_FRAME_SIZE ?
+			10000 : audio_codec_context_->frame_size;
+
+		auto audio_samples_size = av_samples_get_buffer_size(nullptr,
+			audio_codec_context_->channels, 
+			src_nb_samples,
+			audio_codec_context_->sample_fmt, 
+			0);
+
+		audio_frame_ = av_frame_alloc();
+		LIBAV_IF_NULL_THROW(audio_frame_);
+	}
+
+    void openVideoStream(const std::string& file_name, int width, int height, Preset preset, int bit_rate, int fps) {
+		LIBAV_IF_FAILED_THROW(avformat_alloc_output_context2(&format_context_, nullptr, nullptr, file_name.c_str()));
+		format_ = format_context_->oformat;
+
+		auto avcid = format_->video_codec;
+		video_codec_ = avcodec_find_encoder(avcid);
 		LIBAV_IF_NULL_THROW(video_codec_);
 
-        video_stream_ = avformat_new_stream(format_context_, video_codec_);
+		video_stream_ = avformat_new_stream(format_context_, video_codec_);
 		LIBAV_IF_NULL_THROW(video_stream_);
 
-        video_stream_->id = format_context_->nb_streams - 1;
-        video_codec_context_ = video_stream_->codec;
+		video_stream_->id = format_context_->nb_streams - 1;
+		video_codec_context_ = video_stream_->codec;
 
 #define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
 #define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
 
-        if (format_context_->oformat->flags & AVFMT_GLOBALHEADER) {
-            video_codec_context_->flags |= CODEC_FLAG_GLOBAL_HEADER;
-        }
-    }
+		if (format_context_->oformat->flags & AVFMT_GLOBALHEADER) {
+			video_codec_context_->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		}
 
-    void createStreamBuffer(int width, int height, Preset preset, int bit_rate, int fps) {
         video_codec_context_->bit_rate = bit_rate;
         video_codec_context_->width = width;
         video_codec_context_->height = height;
-        video_codec_context_->time_base= AVRational{1, fps};
+        video_codec_context_->time_base = AVRational{1, fps};
+		video_codec_context_->framerate = AVRational{fps, 1};
 		video_codec_context_->gop_size = 12;
         video_codec_context_->pix_fmt = AV_PIX_FMT_YUV420P;
 		video_codec_context_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
-        AVDictionary* options = nullptr;
-		LIBAV_IF_FAILED_THROW(avcodec_open2(video_codec_context_, video_codec_, &options));
-
 		if (video_codec_context_->codec_id == AV_CODEC_ID_H264) {
 			LIBAV_IF_FAILED_THROW(av_opt_set(video_codec_context_->priv_data, "preset", presetOptions(preset), 0));
-			LIBAV_IF_FAILED_THROW(av_opt_set(video_codec_context_->priv_data, "tune", "zerolatency", 0));
-		}		
+			LIBAV_IF_FAILED_THROW(av_opt_set(video_codec_context_->priv_data, "tune", "film,fastdecode,zerolatency", 0));
+		}
+
+        AVDictionary* options = nullptr;
+		LIBAV_IF_FAILED_THROW(avcodec_open2(video_codec_context_, video_codec_, &options));		
 
 		auto size = avpicture_get_size(video_codec_context_->pix_fmt,
 			video_codec_context_->width,
@@ -314,10 +345,14 @@ private:
     AVFormatContext *format_context_;
     AVOutputFormat *format_;
     AVStream *video_stream_;
+	AVStream* audio_stream_;
     AVCodec *video_codec_;
+	AVCodec *audio_codec_;
     AVCodecContext *video_codec_context_;
+	AVCodecContext *audio_codec_context_;
     AVFrame *scale_frame_;
     AVFrame *src_frame_;
+	AVFrame* audio_frame_;
     SwsContext *sws_context_;
 	std::vector<uint8_t> planes_buffer_;
 };
@@ -333,8 +368,8 @@ void LibavVideoEncoder::close() {
     impl_->close();
 }
 
-void LibavVideoEncoder::addFrame(const uint8_t* bits, int bytes_per_line) {
-    impl_->addFrame(bits, bytes_per_line);
+void LibavVideoEncoder::writeVideoFrame(const uint8_t* bits, int bytes_per_line) {
+    impl_->writeVideoFrame(bits, bytes_per_line);
 }
 
 void LibavVideoEncoder::open(const std::string &file_name, int width, int height, Preset preset, int bit_rate, int fps) {

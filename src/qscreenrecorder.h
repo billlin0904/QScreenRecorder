@@ -12,6 +12,7 @@
 #include "spscqueue.h"
 #include "waitqueue.h"
 
+#include "soundreader.h"
 #include "libavvideoencoder.h"
 #include "ui_qscreenrecorder.h"
 
@@ -36,11 +37,11 @@ private:
 	std::unique_ptr<ScreenSelectorWidget> selector_;
     LibavVideoEncoder video_encoder_;
 	SPSCQueue<QImage, 64> frame_buffer_;
-	//WaitQueue<QImage> frame_buffer_;
     QTimer capture_timer_;
 	QTimer delay_record_timer;
 	QTimer update_timer_;
 	QElapsedTimer snap_sceen_timer;
 	std::future<void> future_;
+	SoundReader reader_;
 	Ui::QScreenRecorderClass ui;
 };

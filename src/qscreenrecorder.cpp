@@ -12,15 +12,13 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 	QFont font("Segoe UI", 10);
 	setFont(font);
 
+	const auto fps = 60;
+
 	selector_.reset(new ScreenSelectorWidget(this));
 	selector_->setBorderColor(Qt::red);
-
-	capture_timer_.setTimerType(Qt::PreciseTimer);
-
-	const auto fps = 30;
-
 	selector_->setInterval(1000 / fps);
 
+	capture_timer_.setTimerType(Qt::PreciseTimer);
 	capture_timer_.setInterval(1000 / fps);
 	QObject::connect(&capture_timer_, &QTimer::timeout, this, &QScreenRecorder::saveScreen);
 
@@ -32,35 +30,27 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 	update_timer_.start();
 
 	QObject::connect(&update_timer_, &QTimer::timeout, [this]() {
-#if 1
 		auto available = frame_buffer_.availableCount();
 		auto percent = available * 100 / frame_buffer_.capacity();
 		ui.frameBufferBar->setValue(percent);
-#endif
 		});
 
 	QObject::connect(&delay_record_timer, &QTimer::timeout, [this, fps]() {		
 		future_ = std::async(std::launch::async, [this, fps]() {
-#if 0
-			while (!is_done_ || !frame_buffer_.emptry()) {
-				QImage sceen_image;
-				if (!frame_buffer_.tryWaitAndPop(sceen_image, 1000 / fps)) {
-					qDebug() << "Empty frame buffer.";
-					continue;
-				}
-				try {
-					video_encoder_.addFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
-				} catch (const std::exception& e) {
-					qDebug() << e.what();
-					break;
-				}
+			std::chrono::milliseconds timeout;
+
+			if (fps == 30) {
+				timeout = std::chrono::milliseconds(15);
 			}
-#else
+			else if (fps > 30) {
+				timeout = std::chrono::milliseconds(0);
+			}
+
 			while (!is_done_ || !frame_buffer_.emptry()) {
 				QImage sceen_image;
 				if (frame_buffer_.tryPop(sceen_image)) {
 					try {
-						video_encoder_.addFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
+						video_encoder_.writeVideoFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
 					}
 					catch (const std::exception& e) {
 						qDebug() << e.what();
@@ -68,12 +58,10 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 					}				
 				}
 				else {
-					qDebug() << "Empty frame buffer.";
+					//qDebug() << "Empty frame buffer.";
 				}
-				//std::this_thread::sleep_for(std::chrono::milliseconds(1000 / fps));
-				std::this_thread::sleep_for(std::chrono::milliseconds(1000 / fps / 2));
+				std::this_thread::sleep_for(timeout);
 			}
-#endif
 			video_encoder_.close();
 			});
 		});
@@ -113,13 +101,18 @@ void QScreenRecorder::startRecord(int width, int height, int fps) {
 	
 	qDebug() << "Start recording " << width << " x " << height;
 
-	auto bit_rate = 2030000;
+	auto bit_rate = 0;
+	if (fps == 30) {
+		bit_rate = 2030000;
+	} else if (fps > 30) {
+		bit_rate = 5030000;
+	}
 
 	try {
 		video_encoder_.open("test.mp4",
 			width,
 			height,
-			Preset::PRESET_FAST,
+			Preset::PRESET_VERY_FAST,
 			bit_rate,
 			fps);
 	}
@@ -136,15 +129,6 @@ void QScreenRecorder::startRecord(int width, int height, int fps) {
 void QScreenRecorder::saveScreen() {
 	snap_sceen_timer.start();
 
-#if 0
-	try {		
-		frame_buffer_.push(selector_->grabImage());		
-	}
-	catch (const std::exception& e) {
-		qDebug() << e.what();
-		return;
-	}
-#else
 	try {
         if (!frame_buffer_.tryEnqueue(selector_->grabImage())) {
             qDebug() << "tryEnqueue fail.";
@@ -155,7 +139,6 @@ void QScreenRecorder::saveScreen() {
 		qDebug() << e.what();
 		return;
 	}
-#endif
 
 	auto elapsed = snap_sceen_timer.elapsed();
 
