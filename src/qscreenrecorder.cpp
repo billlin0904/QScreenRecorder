@@ -46,22 +46,29 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 				timeout = std::chrono::milliseconds(0);
 			}
 
+            std::vector<float> audio_sample(8192);
 			while (!is_done_ || !frame_buffer_.emptry()) {
-				QImage sceen_image;
-				if (frame_buffer_.tryPop(sceen_image)) {
-					try {
-						video_encoder_.writeVideoFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
-					}
-					catch (const std::exception& e) {
-						qDebug() << e.what();
-						break;
-					}				
-				}
-				else {
-					//qDebug() << "Empty frame buffer.";
+				QImage sceen_image;                
+                auto read_samples = reader_.read(audio_sample.data(), audio_sample.size());
+                auto has_audio = read_samples > 0;
+                auto has_image = frame_buffer_.tryPop(sceen_image);
+                if (has_image || has_audio) {
+                    if (has_image) {
+                        try {
+                            video_encoder_.writeVideoFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
+                        }
+                        catch (const std::exception& e) {
+                            qDebug() << e.what();
+                            break;
+                        }
+                    }
+                    if (has_audio) {
+                        video_encoder_.writeAudioFrame(audio_sample.data(), audio_sample.size());
+                    }
 				}
 				std::this_thread::sleep_for(timeout);
 			}
+
 			video_encoder_.close();
 			});
 		});
@@ -74,7 +81,7 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 		});
 
 	QObject::connect(ui.startRecordButton, &QPushButton::clicked, [this, fps]() {
-		//selector_->start();
+		//selector_->start();        
 		startRecord(1920, 1080, fps);
 		});
 	QObject::connect(ui.stopRecrodButton, &QPushButton::clicked, [this]() {
@@ -115,6 +122,7 @@ void QScreenRecorder::startRecord(int width, int height, int fps) {
 			Preset::PRESET_VERY_FAST,
 			bit_rate,
 			fps);
+        reader_.start();
 	}
 	catch (const std::exception& e) {
 		qDebug() << e.what();
@@ -123,7 +131,7 @@ void QScreenRecorder::startRecord(int width, int height, int fps) {
 
 	is_done_ = false;
 	capture_timer_.start();
-	delay_record_timer.start();
+	delay_record_timer.start();    
 }
 
 void QScreenRecorder::saveScreen() {

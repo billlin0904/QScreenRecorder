@@ -47,6 +47,10 @@ public:
 
     void close();
 
+    int getAudioSampleSize() const;
+
+    void writeAudioFrame(const float *buffer, int size);
+
     void writeVideoFrame(const uint8_t* bits, int bytes_per_line);
 
 private:

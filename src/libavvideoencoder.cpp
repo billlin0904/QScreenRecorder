@@ -223,6 +223,8 @@ private:
 		audio_codec_context_ = audio_stream_->codec;
 		LIBAV_IF_NULL_THROW(audio_codec_context_);
 
+        audio_codec_context_->strict_std_compliance = -2;
+
 		audio_codec_context_->channel_layout = AV_CH_LAYOUT_STEREO;
 		audio_codec_context_->sample_fmt = audio_codec_->sample_fmts ? audio_codec_->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
 		audio_codec_context_->sample_rate = sample_rate;
@@ -370,6 +372,14 @@ void LibavVideoEncoder::close() {
 
 void LibavVideoEncoder::writeVideoFrame(const uint8_t* bits, int bytes_per_line) {
     impl_->writeVideoFrame(bits, bytes_per_line);
+}
+
+int LibavVideoEncoder::getAudioSampleSize() const  {
+    return 0;
+}
+
+void LibavVideoEncoder::writeAudioFrame(const float *buffer, int size) {
+
 }
 
 void LibavVideoEncoder::open(const std::string &file_name, int width, int height, Preset preset, int bit_rate, int fps) {

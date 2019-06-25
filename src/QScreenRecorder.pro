@@ -33,7 +33,9 @@ SOURCES += \
     screenselector_widget.cpp \
     screenselectsize_widget.cpp \
     libavvideoencoder.cpp \
-    fastscreencapture_linux.cpp
+    fastscreencapture_linux.cpp \
+    soundreader.cpp \
+    module_linux.cpp
 
 HEADERS += \
         qscreenrecorder.h \
@@ -42,7 +44,9 @@ HEADERS += \
     screenselectsize_widget.h \
     fastscreencapture.h \
     libavvideoencoder.h \
-    fastscreencapture_linux.h
+    fastscreencapture_linux.h \
+    soundreader.h \
+    module_linux.h
 
 FORMS += \
         qscreenrecorder.ui
@@ -50,7 +54,7 @@ FORMS += \
 linux-g++* {
     QT += x11extras
 
-    LIBS += -lX11 -lavformat -lavcodec -lavutil -lswscale -lyuv
+    LIBS += -lX11 -lavformat -lavcodec -lavutil -lswscale -lyuv -ldl
 }
 
 # Default rules for deployment.
@@ -62,6 +66,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 unix:!macx: LIBS += -L$$PWD/packages/libyuv/ -lyuv
 
 INCLUDEPATH += $$PWD/packages/libyuv
+INCLUDEPATH += $$PWD/packages/bass
 DEPENDPATH += $$PWD/packages/libyuv
 
 unix:!macx: PRE_TARGETDEPS += $$PWD/packages/libyuv/libyuv.a
