@@ -27,6 +27,8 @@ public:
 	~QScreenRecorder() override;
 
 private:
+	void encode(std::chrono::milliseconds timeout);
+
 	void startRecord(int width, int height, int fps);
 
     void saveScreen();

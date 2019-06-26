@@ -94,6 +94,9 @@ class LibavVideoEncoder::LibavVideoEncoderImpl {
 public:
 	LibavVideoEncoderImpl()
         : frame_count_(0)
+		, audio_samples_size_(0)
+		, auido_samples_count_(0)
+		, sample_rate_(44100)
 		, format_context_(nullptr)
 		, format_(nullptr)
         , video_stream_(nullptr)
@@ -141,6 +144,36 @@ public:
 		openAudioStream();
 	}
 
+	int getAudioSampleSize() const {
+		return audio_samples_size_;
+	}
+
+	void writeAudioFrame(const float* buffer, int size) {
+		AVPacket pkt = { 0 };
+		av_init_packet(&pkt);
+
+		audio_frame_->pts = av_rescale_q(auido_samples_count_,
+			{ 1, audio_codec_context_->sample_rate }, 
+			audio_codec_context_->time_base);
+
+		pkt.data = (uint8_t*)buffer;
+		pkt.size = size * 4;
+		audio_frame_->nb_samples = size;
+
+		auido_samples_count_ += size;
+
+		int got_packet = 0;
+		LIBAV_IF_FAILED_THROW(avcodec_encode_audio2(audio_codec_context_,
+			&pkt,
+			audio_frame_,
+			&got_packet));
+
+		if (got_packet) {
+			writeFrame(audio_codec_context_, audio_stream_, pkt);
+			av_packet_unref(&pkt);
+		}
+	}
+
     void writeVideoFrame(const uint8_t* bits, int bytes_per_line) {
 		src_frame_->data[0] = (uint8_t*)bits;
 		src_frame_->data[1] = nullptr;
@@ -150,7 +183,6 @@ public:
 		src_frame_->linesize[1] = 0;
 		src_frame_->linesize[2] = 0;
 
-#if US_LIBYUV
 #if 0
         libyuv::RGB24ToI420(src_frame_->data[0],
 			src_frame_->linesize[0],
@@ -174,15 +206,6 @@ public:
 			video_codec_context_->width,
 			video_codec_context_->height);
 #endif
-#else
-		LIBAV_IF_FAILED_THROW(sws_scale(sws_context_,
-			src_frame_->data,
-			src_frame_->linesize,
-			0,
-			video_codec_context_->height,
-			scale_frame_->data,
-			scale_frame_->linesize));
-#endif
 
 		scale_frame_->pts = frame_count_;
 
@@ -193,26 +216,30 @@ public:
 		LIBAV_IF_FAILED_THROW(avcodec_encode_video2(video_codec_context_, &pkt, scale_frame_, &got_packet));
 
         if (got_packet) {
-            pkt.pts = av_rescale_q_rnd(pkt.pts,
-                                       video_codec_context_->time_base,
-                                       video_stream_->time_base,
-                                       AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-            pkt.dts = av_rescale_q_rnd(pkt.dts,
-                                       video_codec_context_->time_base,
-                                       video_stream_->time_base,
-                                       AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-            pkt.duration = av_rescale_q(pkt.duration,
-                                        video_codec_context_->time_base,
-                                        video_stream_->time_base);
-			pkt.stream_index = video_stream_->index;
-			LIBAV_IF_FAILED_THROW(av_interleaved_write_frame(format_context_, &pkt));
+			writeFrame(video_codec_context_, video_stream_, pkt);
 			av_packet_unref(&pkt);
         }
 		++frame_count_;
     }
 
 private:
-	void openAudioStream(int sample_rate = 48000) {
+	void writeFrame(const AVCodecContext* codec_context, const AVStream* stream, AVPacket& pkt) {
+		pkt.pts = av_rescale_q_rnd(pkt.pts,
+			codec_context->time_base,
+			stream->time_base,
+			AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+		pkt.dts = av_rescale_q_rnd(pkt.dts,
+			codec_context->time_base,
+			stream->time_base,
+			AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+		pkt.duration = av_rescale_q(pkt.duration,
+			codec_context->time_base,
+			stream->time_base);
+		pkt.stream_index = stream->index;
+		LIBAV_IF_FAILED_THROW(av_interleaved_write_frame(format_context_, &pkt));
+	}
+
+	void openAudioStream() {
 		audio_codec_ = avcodec_find_encoder(format_->audio_codec);
 
 		audio_stream_ = avformat_new_stream(format_context_, audio_codec_);
@@ -227,7 +254,7 @@ private:
 
 		audio_codec_context_->channel_layout = AV_CH_LAYOUT_STEREO;
 		audio_codec_context_->sample_fmt = audio_codec_->sample_fmts ? audio_codec_->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
-		audio_codec_context_->sample_rate = sample_rate;
+		audio_codec_context_->sample_rate = sample_rate_;
 		audio_codec_context_->channels = 2;
 		LIBAV_IF_FAILED_THROW(avcodec_open2(audio_codec_context_, audio_codec_, nullptr));
 
@@ -236,14 +263,18 @@ private:
 			& CODEC_CAP_VARIABLE_FRAME_SIZE ?
 			10000 : audio_codec_context_->frame_size;
 
-		auto audio_samples_size = av_samples_get_buffer_size(nullptr,
-			audio_codec_context_->channels, 
-			src_nb_samples,
-			audio_codec_context_->sample_fmt, 
-			0);
-
 		audio_frame_ = av_frame_alloc();
 		LIBAV_IF_NULL_THROW(audio_frame_);
+
+		audio_frame_->nb_samples = audio_codec_context_->frame_size;
+		audio_frame_->format = audio_codec_context_->sample_fmt;
+		audio_samples_size_ = audio_frame_->nb_samples;
+
+		audio_buffer_size_ = av_samples_get_buffer_size(nullptr,
+			audio_codec_context_->channels,
+			src_nb_samples,
+			audio_codec_context_->sample_fmt,
+			1);
 	}
 
     void openVideoStream(const std::string& file_name, int width, int height, Preset preset, int bit_rate, int fps) {
@@ -284,16 +315,17 @@ private:
         AVDictionary* options = nullptr;
 		LIBAV_IF_FAILED_THROW(avcodec_open2(video_codec_context_, video_codec_, &options));		
 
+		std::vector<uint8_t> planes_buffer;
 		auto size = avpicture_get_size(video_codec_context_->pix_fmt,
 			video_codec_context_->width,
 			video_codec_context_->height);
-		planes_buffer_.resize(size);
+		planes_buffer.resize(size);
 
 		scale_frame_ = av_frame_alloc();
 		LIBAV_IF_NULL_THROW(scale_frame_);
 
 		LIBAV_IF_FAILED_THROW(avpicture_fill(reinterpret_cast<AVPicture*>(scale_frame_),
-			planes_buffer_.data(),
+			planes_buffer.data(),
 			video_codec_context_->pix_fmt,
 			video_codec_context_->width,
 			video_codec_context_->height));
@@ -329,21 +361,13 @@ private:
 			video_codec_context_->height,
 			(AVPixelFormat)src_frame_->format,
 			image_align_size));
-
-		// convert RGB24 to YUV420
-        sws_context_ = sws_getContext(video_codec_context_->width,
-                                      video_codec_context_->height,
-                                      (AVPixelFormat)src_frame_->format,
-                                      video_codec_context_->width,
-                                      video_codec_context_->height,
-                                      (AVPixelFormat)scale_frame_->format,
-                                      SWS_BICUBIC,
-                                      nullptr,
-                                      nullptr,
-                                      nullptr);
     }
 
 	int frame_count_;
+	int auido_samples_count_;
+	int audio_samples_size_;
+	int audio_buffer_size_;
+	int sample_rate_;
     AVFormatContext *format_context_;
     AVOutputFormat *format_;
     AVStream *video_stream_;
@@ -354,9 +378,7 @@ private:
 	AVCodecContext *audio_codec_context_;
     AVFrame *scale_frame_;
     AVFrame *src_frame_;
-	AVFrame* audio_frame_;
-    SwsContext *sws_context_;
-	std::vector<uint8_t> planes_buffer_;
+	AVFrame *audio_frame_;
 };
 
 LibavVideoEncoder::LibavVideoEncoder()
@@ -375,11 +397,11 @@ void LibavVideoEncoder::writeVideoFrame(const uint8_t* bits, int bytes_per_line)
 }
 
 int LibavVideoEncoder::getAudioSampleSize() const  {
-    return 0;
+    return impl_->getAudioSampleSize();
 }
 
 void LibavVideoEncoder::writeAudioFrame(const float *buffer, int size) {
-
+	impl_->writeAudioFrame(buffer, size);
 }
 
 void LibavVideoEncoder::open(const std::string &file_name, int width, int height, Preset preset, int bit_rate, int fps) {

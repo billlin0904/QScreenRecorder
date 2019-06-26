@@ -12,7 +12,7 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 	QFont font("Segoe UI", 10);
 	setFont(font);
 
-	const auto fps = 60;
+	const auto fps = 30;
 
 	selector_.reset(new ScreenSelectorWidget(this));
 	selector_->setBorderColor(Qt::red);
@@ -29,6 +29,8 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 	update_timer_.setInterval(500);
 	update_timer_.start();
 
+	reader_.getInputName();
+
 	QObject::connect(&update_timer_, &QTimer::timeout, [this]() {
 		auto available = frame_buffer_.availableCount();
 		auto percent = available * 100 / frame_buffer_.capacity();
@@ -38,38 +40,13 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 	QObject::connect(&delay_record_timer, &QTimer::timeout, [this, fps]() {		
 		future_ = std::async(std::launch::async, [this, fps]() {
 			std::chrono::milliseconds timeout;
-
 			if (fps == 30) {
 				timeout = std::chrono::milliseconds(15);
 			}
 			else if (fps > 30) {
 				timeout = std::chrono::milliseconds(0);
 			}
-
-            std::vector<float> audio_sample(8192);
-			while (!is_done_ || !frame_buffer_.emptry()) {
-				QImage sceen_image;                
-                auto read_samples = reader_.read(audio_sample.data(), audio_sample.size());
-                auto has_audio = read_samples > 0;
-                auto has_image = frame_buffer_.tryPop(sceen_image);
-                if (has_image || has_audio) {
-                    if (has_image) {
-                        try {
-                            video_encoder_.writeVideoFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
-                        }
-                        catch (const std::exception& e) {
-                            qDebug() << e.what();
-                            break;
-                        }
-                    }
-                    if (has_audio) {
-                        video_encoder_.writeAudioFrame(audio_sample.data(), audio_sample.size());
-                    }
-				}
-				std::this_thread::sleep_for(timeout);
-			}
-
-			video_encoder_.close();
+			encode(timeout);
 			});
 		});
 
@@ -88,6 +65,35 @@ QScreenRecorder::QScreenRecorder(QWidget *parent)
 		capture_timer_.stop();
 		is_done_ = true;
 		});
+}
+
+void QScreenRecorder::encode(std::chrono::milliseconds timeout) {
+	std::vector<float> audio_sample(video_encoder_.getAudioSampleSize() * 2);
+	QImage sceen_image;
+
+	while (!is_done_ || !frame_buffer_.emptry()) {
+		//auto read_samples = reader_.read(audio_sample.data(), audio_sample.size());
+		//auto has_audio = read_samples > 0;
+		auto has_audio = true;
+		auto has_image = frame_buffer_.tryPop(sceen_image);
+		if (has_image || has_audio) {
+			if (has_image) {
+				try {
+					video_encoder_.writeVideoFrame(sceen_image.constBits(), sceen_image.bytesPerLine());
+				}
+				catch (const std::exception& e) {
+					qDebug() << e.what();
+					break;
+				}
+			}
+			if (has_audio) {
+				video_encoder_.writeAudioFrame(audio_sample.data(), audio_sample.size() * 4);
+			}
+		}
+		std::this_thread::sleep_for(timeout);
+	}
+
+	video_encoder_.close();
 }
 
 QScreenRecorder::~QScreenRecorder() {
@@ -122,7 +128,7 @@ void QScreenRecorder::startRecord(int width, int height, int fps) {
 			Preset::PRESET_VERY_FAST,
 			bit_rate,
 			fps);
-        reader_.start();
+        //reader_.start();
 	}
 	catch (const std::exception& e) {
 		qDebug() << e.what();

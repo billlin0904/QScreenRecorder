@@ -27,7 +27,6 @@ public:
 public:;
     DEFINE_EXPORT_API(BASS_Init) BASS_Init_;
     DEFINE_EXPORT_API(BASS_Free) BASS_Free_;
-    DEFINE_EXPORT_API(BASS_PluginLoad) BASS_PluginLoad_;
     DEFINE_EXPORT_API(BASS_GetVersion) BASS_GetVersion_;
     DEFINE_EXPORT_API(BASS_SetConfig) BASS_SetConfig_;
     DEFINE_EXPORT_API(BASS_ErrorGetCode) BASS_ErrorGetCode_;
@@ -52,7 +51,6 @@ private:
         : module(LoadModuleLibrary(BASS_DLL_PATH))
         , BASS_Init_(module, "BASS_Init")
         , BASS_Free_(module, "BASS_Free")
-        , BASS_PluginLoad_(module, "BASS_PluginLoad")
         , BASS_GetVersion_(module, "BASS_GetVersion")
         , BASS_SetConfig_(module, "BASS_SetConfig")
         , BASS_ErrorGetCode_(module, "BASS_ErrorGetCode")
@@ -261,7 +259,7 @@ public:
         // For a recording channel, that means it must not use a RECORDPROC.
         auto record = BassLib::get().BASS_RecordStart_(sample_rate_,
                                                        2,
-                                                       BASS_RECORD_PAUSE,
+													   BASS_SAMPLE_FLOAT | BASS_RECORD_PAUSE,
                                                        nullptr,
                                                        nullptr);
         BASS_IF_FAIL_THROW(record);
@@ -282,7 +280,11 @@ public:
     }
 
     int read(float *buffer, int size) const {
-        return BassLib::get().BASS_ChannelGetData_(streams_[0].get(), buffer, size);
+        auto read_samples = BassLib::get().BASS_ChannelGetData_(streams_[0].get(), buffer, size);
+		if (read_samples == DWORD(-1)) {
+			return 0;
+		}
+		return read_samples;
     }
 private:
     int sample_rate_;
